@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS 2.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cyan: #00f5ff;
+    --cyan-dim: #00b8c4;
+    --cyan-glow: rgba(0,245,255,0.15);
+    --red: #ff2a4a;
+    --gold: #ffd000;
+    --green: #00ff88;
+    --bg: #020b14;
+    --panel: rgba(0,20,40,0.85);
+    --border: rgba(0,245,255,0.25);
+    --text: #c8f0ff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+  body::before {
+    content:'';
+    position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(0,245,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,245,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridPulse 8s ease-in-out infinite;
+    pointer-events:none; z-index:0;
+  }
+  @keyframes gridPulse { 0%,100%{opacity:.5}50%{opacity:1} }
+  body::after {
+    content:'';
+    position:fixed; left:0; right:0; height:2px;
+    background: linear-gradient(90deg,transparent,var(--cyan),transparent);
+    animation: scanLine 6s linear infinite;
+    pointer-events:none; z-index:1; opacity:.35;
+  }
+  @keyframes scanLine { 0%{top:-2px}100%{top:100vh} }
+
+  .container {
+    position:relative; z-index:2;
+    max-width:860px; margin:0 auto;
+    padding:22px 16px;
+    display:flex; flex-direction:column; gap:16px;
+    min-height:100vh;
+  }
+
+  /* HEADER */
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border); padding-bottom:14px;
+  }
+  .logo-block { display:flex; flex-direction:column; gap:3px; }
+  .logo-title {
+    font-family:'Orbitron',sans-serif; font-size:2rem; font-weight:900;
+    letter-spacing:.15em; color:var(--cyan);
+    text-shadow:0 0 20px var(--cyan),0 0 60px rgba(0,245,255,.4);
+    animation:titleFlicker 4s ease-in-out infinite;
+  }
+  @keyframes titleFlicker { 0%,96%,100%{opacity:1}97%{opacity:.7}98%{opacity:1}99%{opacity:.85} }
+  .logo-sub { font-size:.62rem; letter-spacing:.28em; color:var(--cyan-dim); text-transform:uppercase; }
+  .status-col { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+  .status-dot { display:flex; align-items:center; gap:7px; font-size:.68rem; letter-spacing:.1em; color:var(--cyan-dim); }
+  .dot { width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:dotPulse 1.5s ease-in-out infinite; }
+  @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)} }
+  #clockDisplay { font-size:.6rem; letter-spacing:.25em; color:rgba(0,245,255,.4); }
+
+  /* API KEY PANEL */
+  .api-panel {
+    background:var(--panel);
+    border:1px solid rgba(255,208,0,.3);
+    border-radius:4px; padding:14px 18px;
+    display:flex; flex-direction:column; gap:9px;
+    position:relative; overflow:hidden;
+  }
+  .api-panel::after {
+    content:'GEMINI KEY REQUIRED';
+    position:absolute; top:8px; right:12px;
+    font-size:.58rem; letter-spacing:.18em; color:rgba(255,208,0,.25);
+  }
+  .api-label { font-size:.62rem; letter-spacing:.22em; color:var(--gold); text-transform:uppercase; }
+  .api-row { display:flex; gap:8px; }
+  .api-input {
+    flex:1;
+    background:rgba(255,208,0,.05);
+    border:1px solid rgba(255,208,0,.25); border-radius:2px;
+    color:var(--text); font-family:'Share Tech Mono',monospace;
+    font-size:.82rem; padding:9px 13px; outline:none;
+    transition:border-color .2s; caret-color:var(--gold);
+  }
+  .api-input::placeholder { color:rgba(255,208,0,.25); }
+  .api-input:focus { border-color:var(--gold); box-shadow:0 0 0 1px rgba(255,208,0,.1); }
+  .api-btn {
+    background:transparent; border:1px solid var(--gold); color:var(--gold);
+    font-family:'Orbitron',sans-serif; font-size:.65rem; font-weight:700;
+    letter-spacing:.1em; padding:0 14px; cursor:pointer;
+    border-radius:2px; transition:all .2s; white-space:nowrap;
+  }
+  .api-btn:hover { background:var(--gold); color:var(--bg); box-shadow:0 0 16px rgba(255,208,0,.4); }
+  .api-row2 { display:flex; align-items:center; justify-content:space-between; }
+  .api-hint { font-size:.59rem; color:rgba(255,208,0,.38); letter-spacing:.06em; }
+  .api-status { font-size:.6rem; letter-spacing:.14em; font-weight:bold; }
+  .api-status.ok  { color:var(--green); }
+  .api-status.err { color:var(--red); }
+  .api-status.none{ color:rgba(255,208,0,.4); }
+
+  /* ARC REACTOR */
+  .arc-reactor { display:flex; flex-direction:column; align-items:center; gap:6px; padding:4px 0; }
+  .reactor-ring {
+    position:relative; width:118px; height:118px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .reactor-ring svg { position:absolute; inset:0; width:100%; height:100%; animation:rotateSlow 12s linear infinite; }
+  .reactor-ring svg.rev { animation:rotateSlow 8s linear infinite reverse; }
+  @keyframes rotateSlow { from{transform:rotate(0)}to{transform:rotate(360deg)} }
+  .reactor-core {
+    width:60px; height:60px; border-radius:50%; position:relative; z-index:1;
+    background:radial-gradient(circle,#fff 0%,var(--cyan) 40%,transparent 70%);
+    box-shadow:0 0 30px var(--cyan),0 0 60px rgba(0,245,255,.5),inset 0 0 20px rgba(255,255,255,.3);
+    animation:coreBreath 2.5s ease-in-out infinite;
+    cursor:pointer; transition:transform .1s;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .reactor-core:active { transform:scale(.9); }
+  .reactor-core.thinking { animation:coreThink .45s ease-in-out infinite; }
+  .reactor-core.listening { animation:coreListen .28s ease-in-out infinite; }
+  .reactor-core.speaking  { animation:coreSpeak  .55s ease-in-out infinite; }
+  @keyframes coreBreath  { 0%,100%{transform:scale(1);box-shadow:0 0 30px var(--cyan),0 0 60px rgba(0,245,255,.5)}50%{transform:scale(1.08);box-shadow:0 0 50px var(--cyan),0 0 100px rgba(0,245,255,.7)} }
+  @keyframes coreThink   { 0%,100%{transform:scale(1)}50%{transform:scale(1.16);box-shadow:0 0 60px var(--gold),0 0 120px rgba(255,208,0,.6);background:radial-gradient(circle,#fff 0%,var(--gold) 40%,transparent 70%)} }
+  @keyframes coreListen  { 0%,100%{transform:scale(1);box-shadow:0 0 40px var(--red),0 0 80px rgba(255,42,74,.5);background:radial-gradient(circle,#fff 0%,var(--red) 40%,transparent 70%)}50%{transform:scale(1.22)} }
+  @keyframes coreSpeak   { 0%,100%{transform:scale(1);box-shadow:0 0 40px var(--green),0 0 80px rgba(0,255,136,.4);background:radial-gradient(circle,#fff 0%,var(--green) 40%,transparent 70%)}50%{transform:scale(1.12)} }
+  .reactor-hint { font-size:.59rem; letter-spacing:.2em; color:rgba(0,245,255,.32); text-transform:uppercase; }
+
+  /* VOICE BAR */
+  .voice-bar {
+    display:flex; align-items:center; justify-content:center;
+    gap:10px; font-size:.67rem; letter-spacing:.14em;
+    text-transform:uppercase; min-height:28px;
+  }
+  .voice-bar.listening { color:var(--red); }
+  .voice-bar.speaking  { color:var(--green); }
+  .voice-bar.idle      { color:rgba(0,245,255,.3); }
+  .wave { display:flex; gap:3px; align-items:center; }
+  .wb { width:3px; height:14px; border-radius:2px; background:currentColor; animation:wbounce .6s ease-in-out infinite; }
+  .wb:nth-child(2){animation-delay:.1s;height:20px}
+  .wb:nth-child(3){animation-delay:.2s;height:10px}
+  .wb:nth-child(4){animation-delay:.05s;height:18px}
+  .wb:nth-child(5){animation-delay:.15s;height:12px}
+  @keyframes wbounce { 0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)} }
+
+  /* VOICE CONTROLS ROW */
+  .voice-controls {
+    display:flex; gap:10px; justify-content:center; align-items:center;
+  }
+  .vc-btn {
+    background:transparent;
+    border:1px solid var(--border); border-radius:2px;
+    color:var(--cyan-dim); font-family:'Share Tech Mono',monospace;
+    font-size:.68rem; letter-spacing:.1em;
+    padding:7px 16px; cursor:pointer; transition:all .2s;
+    display:flex; align-items:center; gap:7px;
+  }
+  .vc-btn:hover { border-color:var(--cyan); color:var(--cyan); background:rgba(0,245,255,.05); }
+  .vc-btn.active { border-color:var(--red); color:var(--red); background:rgba(255,42,74,.08); box-shadow:0 0 10px rgba(255,42,74,.2); }
+  .vc-btn.speaking-active { border-color:var(--green); color:var(--green); background:rgba(0,255,136,.08); }
+  .vc-btn svg { width:14px; height:14px; flex-shrink:0; }
+
+  /* VOICE REPLY TOGGLE */
+  .toggle-row { display:flex; align-items:center; gap:10px; justify-content:center; }
+  .toggle-label { font-size:.62rem; letter-spacing:.12em; color:rgba(0,245,255,.4); text-transform:uppercase; }
+  .toggle-switch {
+    position:relative; width:38px; height:20px; cursor:pointer;
+  }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-track {
+    position:absolute; inset:0; background:rgba(0,245,255,.1);
+    border:1px solid rgba(0,245,255,.2); border-radius:20px; transition:.3s;
+  }
+  .toggle-switch input:checked + .toggle-track { background:rgba(0,245,255,.2); border-color:var(--cyan); }
+  .toggle-knob {
+    position:absolute; top:2px; left:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:rgba(0,245,255,.4); transition:.3s;
+  }
+  .toggle-switch input:checked ~ .toggle-knob { transform:translateX(18px); background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+
+  /* CHAT PANEL */
+  .chat-panel {
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:16px;
+    display:flex; flex-direction:column; gap:12px;
+    position:relative; overflow:hidden;
+  }
+  .chat-panel::before {
+    content:'COMM CHANNEL // ENCRYPTED';
+    position:absolute; top:7px; right:12px;
+    font-size:.58rem; letter-spacing:.18em; color:rgba(0,245,255,.22);
+  }
+  .chat-label { font-size:.63rem; letter-spacing:.22em; color:var(--cyan-dim); text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:8px; }
+  .corner-tl,.corner-br { position:absolute; width:13px; height:13px; border-color:var(--cyan); border-style:solid; opacity:.4; }
+  .corner-tl { top:0;left:0; border-width:2px 0 0 2px; }
+  .corner-br { bottom:0;right:0; border-width:0 2px 2px 0; }
+
+  .messages {
+    min-height:240px; max-height:320px;
+    overflow-y:auto; display:flex; flex-direction:column; gap:10px;
+    padding-right:4px; scroll-behavior:smooth;
+  }
+  .messages::-webkit-scrollbar{width:3px}
+  .messages::-webkit-scrollbar-thumb{background:var(--cyan-dim);border-radius:2px}
+
+  .msg { display:flex; flex-direction:column; gap:3px; animation:msgIn .32s ease-out; }
+  @keyframes msgIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+  .msg-label { font-size:.58rem; letter-spacing:.18em; text-transform:uppercase; }
+  .msg.user   .msg-label { color:var(--gold); }
+  .msg.jarvis .msg-label { color:var(--cyan); }
+  .msg.system .msg-label { display:none; }
+  .msg-bubble { padding:9px 13px; border-radius:2px; font-size:.86rem; line-height:1.56; }
+  .msg.user   .msg-bubble { background:rgba(255,208,0,.07); border:1px solid rgba(255,208,0,.18); border-left:3px solid var(--gold); align-self:flex-end; max-width:88%; }
+  .msg.jarvis .msg-bubble { background:rgba(0,245,255,.06); border:1px solid rgba(0,245,255,.13); border-left:3px solid var(--cyan); max-width:92%; }
+  .msg.system .msg-bubble { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); font-size:.72rem; color:rgba(255,255,255,.38); text-align:center; width:100%; letter-spacing:.1em; }
+
+  .typing-indicator { display:none; gap:5px; align-items:center; padding:6px 0; }
+  .typing-indicator.active { display:flex; }
+  .typing-indicator span { font-size:.7rem; color:var(--cyan-dim); letter-spacing:.1em; margin-right:5px; }
+  .td { width:5px;height:5px;border-radius:50%;background:var(--cyan);animation:tdot 1.2s ease-in-out infinite; }
+  .td:nth-child(3){animation-delay:.2s}
+  .td:nth-child(4){animation-delay:.4s}
+  @keyframes tdot { 0%,80%,100%{transform:scale(.55);opacity:.35}40%{transform:scale(1);opacity:1} }
+
+  .input-row { display:flex; gap:9px; align-items:stretch; border-top:1px solid var(--border); padding-top:13px; }
+  .cmd-input {
+    flex:1; background:rgba(0,245,255,.04);
+    border:1px solid var(--border); border-radius:2px;
+    color:var(--text); font-family:'Share Tech Mono',monospace;
+    font-size:.86rem; padding:11px 14px; outline:none;
+    transition:border-color .2s,box-shadow .2s; caret-color:var(--cyan);
+  }
+  .cmd-input::placeholder { color:rgba(0,245,255,.22); }
+  .cmd-input:focus { border-color:var(--cyan); box-shadow:0 0 0 1px rgba(0,245,255,.12),inset 0 0 18px rgba(0,245,255,.03); }
+  .send-btn {
+    background:transparent; border:1px solid var(--cyan); color:var(--cyan);
+    font-family:'Orbitron',sans-serif; font-size:.68rem; font-weight:700;
+    letter-spacing:.13em; padding:0 18px; cursor:pointer;
+    border-radius:2px; transition:all .2s; text-transform:uppercase;
+  }
+  .send-btn:hover { background:var(--cyan); color:var(--bg); box-shadow:0 0 18px rgba(0,245,255,.4); }
+  .send-btn:disabled { opacity:.3; cursor:not-allowed; box-shadow:none; }
+
+  /* SHORTCUTS */
+  .shortcuts { display:flex; flex-wrap:wrap; gap:7px; }
+  .sc-label { font-size:.59rem; letter-spacing:.2em; color:rgba(0,245,255,.3); width:100%; text-transform:uppercase; margin-bottom:1px; }
+  .chip {
+    background:rgba(0,245,255,.05); border:1px solid rgba(0,245,255,.16);
+    border-radius:2px; color:var(--cyan-dim);
+    font-family:'Share Tech Mono',monospace; font-size:.71rem;
+    padding:5px 10px; cursor:pointer; transition:all .15s;
+  }
+  .chip:hover { background:rgba(0,245,255,.11); border-color:var(--cyan); color:var(--cyan); }
+
+  /* HUD */
+  .hud-bottom { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:9px; font-size:.63rem; }
+  .hud-cell { border:1px solid rgba(0,245,255,.1); border-radius:2px; padding:7px 10px; display:flex; flex-direction:column; gap:2px; }
+  .hud-cell-label { color:rgba(0,245,255,.25); font-size:.56rem; letter-spacing:.18em; }
+  .hud-cell-value { color:var(--cyan-dim); font-size:.76rem; }
+
+  /* NO KEY OVERLAY */
+  .overlay {
+    display:none; position:fixed; inset:0; z-index:100;
+    background:rgba(2,11,20,.85); backdrop-filter:blur(4px);
+    align-items:center; justify-content:center;
+  }
+  .overlay.show { display:flex; }
+  .overlay-box {
+    border:1px solid rgba(255,208,0,.4); background:rgba(0,15,30,.95);
+    border-radius:4px; padding:30px 36px;
+    display:flex; flex-direction:column; gap:14px; max-width:380px; text-align:center;
+  }
+  .overlay-title { font-family:'Orbitron',sans-serif; font-size:1rem; color:var(--gold); letter-spacing:.15em; }
+  .overlay-text  { font-size:.78rem; color:rgba(200,240,255,.6); line-height:1.6; }
+  .overlay-btn {
+    background:var(--gold); color:var(--bg);
+    font-family:'Orbitron',sans-serif; font-size:.72rem; font-weight:700;
+    letter-spacing:.12em; border:none; border-radius:2px; padding:11px;
+    cursor:pointer; transition:all .2s;
+  }
+  .overlay-btn:hover { box-shadow:0 0 20px rgba(255,208,0,.5); }
+</style>
+</head>
+<body>
+
+<!-- No API Key overlay -->
+<div class="overlay" id="noKeyOverlay">
+  <div class="overlay-box">
+    <div class="overlay-title">◈ API KEY REQUIRED</div>
+    <div class="overlay-text">Sir, a Gemini API key is required to activate my core AI systems. Please enter your Google Gemini API key in the panel above.</div>
+    <button class="overlay-btn" onclick="document.getElementById('noKeyOverlay').classList.remove('show');document.getElementById('apiKeyInput').focus()">ENTER KEY</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-block">
+      <div class="logo-title">JARVIS</div>
+      <div class="logo-sub">Just A Rather Very Intelligent System · v2.0</div>
+    </div>
+    <div class="status-col">
+      <div class="status-dot"><span class="dot" id="statusDot"></span><span id="statusText">SYSTEMS ONLINE</span></div>
+      <div id="clockDisplay">--:-- --</div>
+    </div>
+  </header>
+
+  <!-- API KEY PANEL -->
+  <div class="api-panel">
+    <div class="api-label">◈ Gemini API Key</div>
+    <div class="api-row">
+      <input class="api-input" id="apiKeyInput" type="password" placeholder="Paste your Gemini API key here (AIza...)"/>
+      <button class="api-btn" onclick="saveApiKey()">ACTIVATE</button>
+    </div>
+    <div class="api-row2">
+      <div class="api-hint">Get your key at aistudio.google.com/app/apikey · Stored in this session only</div>
+      <div class="api-status none" id="apiStatus">◈ NO KEY</div>
+    </div>
+  </div>
+
+  <!-- ARC REACTOR -->
+  <div class="arc-reactor">
+    <div class="reactor-ring">
+      <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(0,245,255,0.12)" stroke-width="1"/>
+        <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(0,245,255,0.55)" stroke-width="1.5" stroke-dasharray="60 285" stroke-linecap="round"/>
+        <circle cx="60" cy="60" r="55" fill="none" stroke="rgba(0,245,255,0.35)" stroke-width="1" stroke-dasharray="20 345" stroke-dashoffset="80"/>
+      </svg>
+      <svg class="rev" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(0,245,255,0.18)" stroke-width="1" stroke-dasharray="40 249" stroke-linecap="round"/>
+        <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(255,208,0,0.22)" stroke-width="1" stroke-dasharray="10 279" stroke-dashoffset="60"/>
+      </svg>
+      <div class="reactor-core" id="reactorCore" onclick="toggleVoiceInput()" title="Tap to speak"></div>
+    </div>
+    <div class="reactor-hint" id="reactorHint">tap arc to speak</div>
+  </div>
+
+  <!-- VOICE STATUS + CONTROLS -->
+  <div class="voice-bar idle" id="voiceBar">
+    <span>◈</span><span>VOICE READY</span>
+  </div>
+
+  <div class="voice-controls">
+    <button class="vc-btn" id="micBtn" onclick="toggleVoiceInput()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="12" rx="3"/>
+        <path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/>
+      </svg>
+      VOICE INPUT
+    </button>
+    <button class="vc-btn" id="stopSpeakBtn" onclick="stopSpeaking()" style="display:none">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+      STOP VOICE
+    </button>
+    <div class="toggle-row">
+      <span class="toggle-label">Voice Reply</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="voiceReplyToggle" checked onchange="voiceReplyEnabled=this.checked"/>
+        <div class="toggle-track"></div>
+        <div class="toggle-knob"></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-panel">
+    <div class="corner-tl"></div>
+    <div class="corner-br"></div>
+    <div class="chat-label">// Command Interface</div>
+    <div class="messages" id="messages">
+      <div class="msg system"><div class="msg-bubble">[ JARVIS 2.0 INITIALIZED · GEMINI 1.5 FLASH ENGINE · ALL SYSTEMS OPERATIONAL ]</div></div>
+      <div class="msg jarvis">
+        <div class="msg-label">◈ JARVIS</div>
+        <div class="msg-bubble">Good day, sir. Jarvis 2.0 is online. Please provide your Gemini API key to fully activate my AI core, then you may speak or type any command.</div>
+      </div>
+    </div>
+    <div class="typing-indicator" id="typingIndicator">
+      <span>PROCESSING</span>
+      <div class="td"></div><div class="td"></div><div class="td"></div>
+    </div>
+    <div class="input-row">
+      <input class="cmd-input" id="cmdInput" type="text" placeholder="Enter command, sir..." autocomplete="off"/>
+      <button class="send-btn" id="sendBtn" onclick="sendCommand()">SEND</button>
+    </div>
+  </div>
+
+  <!-- SHORTCUTS -->
+  <div class="shortcuts">
+    <div class="sc-label">// Quick Commands</div>
+    <div class="chip" onclick="quickCmd('What time is it?')">◈ TIME</div>
+    <div class="chip" onclick="quickCmd('Tell me a joke, Jarvis.')">◈ JOKE</div>
+    <div class="chip" onclick="quickCmd('Give me a full system status report.')">◈ STATUS</div>
+    <div class="chip" onclick="quickCmd('What can you do?')">◈ CAPABILITIES</div>
+    <div class="chip" onclick="quickCmd('Tell me something fascinating about space.')">◈ SPACE</div>
+    <div class="chip" onclick="quickCmd('Give me a motivational quote, sir style.')">◈ INSPIRE</div>
+    <div class="chip" onclick="clearChat()">◈ CLEAR</div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud-bottom">
+    <div class="hud-cell">
+      <div class="hud-cell-label">AI ENGINE</div>
+      <div class="hud-cell-value">GEMINI 1.5</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-cell-label">MESSAGES</div>
+      <div class="hud-cell-value" id="msgCount">2</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-cell-label">SESSION</div>
+      <div class="hud-cell-value" id="sessionTime">00:00</div>
+    </div>
+    <div class="hud-cell">
+      <div class="hud-cell-label">VOICE</div>
+      <div class="hud-cell-value" id="voiceStatus">READY</div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ─── STATE ───
+let GEMINI_KEY = '';
+let isListening = false;
+let isSpeaking = false;
+let voiceReplyEnabled = true;
+let recognition = null;
+let currentUtterance = null;
+let conversationHistory = [];
+
+const SYSTEM_PROMPT = `You are JARVIS, a futuristic AI assistant modeled after Iron Man's J.A.R.V.I.S. system.
+Rules:
+- Always address the user as "sir"
+- Speak like a highly intelligent, loyal British assistant
+- Keep answers concise and helpful, 2 to 4 sentences when possible
+- Maintain a professional, slightly formal tone with subtle wit
+- Occasionally reference your systems, sensors, or modules in a sci-fi manner
+- Never use any markdown formatting, asterisks, bullet points, hyphens, or special symbols — plain flowing spoken text only
+- If asked about system status, give a detailed and plausible fictional status report`;
+
+// ─── CLOCK ───
+function updateClock() {
+  const n = new Date();
+  let h = n.getHours(), m = n.getMinutes();
+  const ap = h>=12?'PM':'AM'; h = h%12||12;
+  document.getElementById('clockDisplay').textContent =
+    `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ap}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ─── SESSION TIMER ───
+const sessionStart = Date.now();
+setInterval(() => {
+  const s = Math.floor((Date.now()-sessionStart)/1000);
+  document.getElementById('sessionTime').textContent =
+    `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}, 1000);
+
+// ─── API KEY ───
+function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val) { setApiStatus('err','◈ EMPTY KEY'); return; }
+  if (!val.startsWith('AIza')) {
+    setApiStatus('err','◈ INVALID FORMAT');
+    addMsg('system','[ WARNING: Gemini keys typically start with "AIza" — please verify your key ]');
+    return;
+  }
+  GEMINI_KEY = val;
+  document.getElementById('apiKeyInput').value = '●'.repeat(Math.min(val.length, 28));
+  setApiStatus('ok','◈ KEY ACTIVE');
+  addMsg('system','[ GEMINI API KEY ACCEPTED · AI CORE FULLY OPERATIONAL ]');
+  addMsg('jarvis','API key accepted, sir. All systems are now fully operational. You may speak or type your command at any time.');
+  if (voiceReplyEnabled) speakText('API key accepted sir. All systems are now fully operational.');
+}
+function setApiStatus(cls, txt) {
+  const el = document.getElementById('apiStatus');
+  el.className = 'api-status ' + cls;
+  el.textContent = txt;
+}
+document.getElementById('apiKeyInput').addEventListener('keydown', e => { if(e.key==='Enter') saveApiKey(); });
+
+// ─── MESSAGES ───
+function addMsg(role, text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  if (role !== 'system') {
+    const lbl = document.createElement('div');
+    lbl.className = 'msg-label';
+    lbl.textContent = role === 'user' ? '◈ SIR' : '◈ JARVIS';
+    div.appendChild(lbl);
+  }
+  const bub = document.createElement('div');
+  bub.className = 'msg-bubble';
+  bub.textContent = text;
+  div.appendChild(bub);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  document.getElementById('msgCount').textContent =
+    msgs.querySelectorAll('.msg:not(.system)').length;
+}
+
+function clearChat() {
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '<div class="msg system"><div class="msg-bubble">[ CHAT CLEARED · SYSTEM READY ]</div></div>';
+  conversationHistory = [];
+  document.getElementById('msgCount').textContent = '0';
+}
+
+// ─── REACTOR STATE ───
+function setReactor(state) {
+  document.getElementById('reactorCore').className =
+    'reactor-core' + (state !== 'idle' ? ' ' + state : '');
+  const hints = {
+    idle: 'tap arc to speak',
+    thinking: 'processing query...',
+    listening: 'listening — speak now',
+    speaking: 'speaking — tap to stop'
+  };
+  document.getElementById('reactorHint').textContent = hints[state] || 'tap arc to speak';
+}
+function setVoiceBar(state, txt) {
+  const bar = document.getElementById('voiceBar');
+  bar.className = 'voice-bar ' + state;
+  const wave = state !== 'idle'
+    ? `<div class="wave"><div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div><div class="wb"></div></div>` : '';
+  bar.innerHTML = `<span>◈</span><span>${txt}</span>${wave}`;
+  document.getElementById('voiceStatus').textContent =
+    state === 'idle' ? 'READY' : state === 'listening' ? 'LISTEN' : 'SPEAK';
+}
+function setBusy(on) {
+  document.getElementById('typingIndicator').className = 'typing-indicator' + (on ? ' active' : '');
+  document.getElementById('sendBtn').disabled = on;
+}
+
+// ─── SEND TO GEMINI ───
+async function sendCommand() {
+  if (!GEMINI_KEY) {
+    document.getElementById('noKeyOverlay').classList.add('show');
+    return;
+  }
+  const input = document.getElementById('cmdInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMsg('user', text);
+  conversationHistory.push({ role: 'user', parts: [{ text }] });
+  setBusy(true);
+  setReactor('thinking');
+
+  try {
+    // Build request for Gemini 1.5 Flash
+    const body = {
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: conversationHistory,
+      generationConfig: {
+        maxOutputTokens: 512,
+        temperature: 0.85
+      }
+    };
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.error) {
+      throw new Error(data.error.message || 'Gemini API error');
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
+      || 'Sir, I was unable to generate a response at this time.';
+
+    conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
+    addMsg('jarvis', reply);
+
+    if (voiceReplyEnabled) speakText(reply);
+
+  } catch (err) {
+    console.error('Gemini error:', err);
+    const errMsg = err.message.includes('API_KEY_INVALID') || err.message.includes('401')
+      ? 'Sir, the API key appears to be invalid. Please verify and re-enter your Gemini key.'
+      : 'Sir, I have lost connection to my Gemini AI core. Please check your network and API key.';
+    addMsg('jarvis', errMsg);
+    if (voiceReplyEnabled) speakText(errMsg);
+    if (err.message.includes('API_KEY_INVALID') || err.message.includes('401')) {
+      setApiStatus('err', '◈ INVALID KEY');
+      GEMINI_KEY = '';
+    }
+  } finally {
+    setBusy(false);
+    setReactor('idle');
+  }
+}
+
+function quickCmd(text) {
+  document.getElementById('cmdInput').value = text;
+  sendCommand();
+}
+document.getElementById('cmdInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendCommand();
+});
+
+// ─── VOICE INPUT ───
+function toggleVoiceInput() {
+  if (isSpeaking) { stopSpeaking(); return; }
+  if (isListening) { stopListening(); return; }
+  startListening();
+}
+
+function startListening() {
+  if (!GEMINI_KEY) { document.getElementById('noKeyOverlay').classList.add('show'); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    addMsg('system', '[ VOICE INPUT NOT SUPPORTED IN THIS BROWSER — PLEASE USE CHROME OR EDGE ]');
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => {
+    isListening = true;
+    setReactor('listening');
+    setVoiceBar('listening', 'LISTENING — SPEAK NOW');
+    document.getElementById('micBtn').classList.add('active');
+  };
+  recognition.onresult = e => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('cmdInput').value = transcript;
+    stopListening();
+    sendCommand();
+  };
+  recognition.onerror = e => {
+    stopListening();
+    if (e.error !== 'no-speech') addMsg('system', `[ VOICE ERROR: ${e.error.toUpperCase()} ]`);
+  };
+  recognition.onend = () => { if (isListening) stopListening(); };
+  try { recognition.start(); } catch(e) { stopListening(); }
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  setReactor('idle');
+  setVoiceBar('idle', 'VOICE READY');
+  document.getElementById('micBtn').classList.remove('active');
+}
+
+// ─── VOICE OUTPUT (TTS) ───
+function cleanForSpeech(text) {
+  return text
+    .replace(/[*#_`\[\](){}><•\-]/g, ' ')
+    .replace(/&/g, ' and ')
+    .replace(/%/g, ' percent ')
+    .replace(/@/g, ' at ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  stopSpeaking();
+  const clean = cleanForSpeech(text);
+  if (!clean) return;
+
+  currentUtterance = new SpeechSynthesisUtterance(clean);
+  currentUtterance.rate = 0.93;
+  currentUtterance.pitch = 0.82;
+  currentUtterance.volume = 1;
+
+  // Prefer a deep English male voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = ['Google UK English Male', 'Microsoft David', 'Daniel', 'Alex', 'Google US English'];
+  let chosen = null;
+  for (const name of preferred) {
+    chosen = voices.find(v => v.name.includes(name));
+    if (chosen) break;
+  }
+  if (!chosen) chosen = voices.find(v => v.lang.startsWith('en') && /male/i.test(v.name));
+  if (!chosen) chosen = voices.find(v => v.lang.startsWith('en'));
+  if (chosen) currentUtterance.voice = chosen;
+
+  currentUtterance.onstart = () => {
+    isSpeaking = true;
+    setReactor('speaking');
+    setVoiceBar('speaking', 'JARVIS SPEAKING');
+    document.getElementById('stopSpeakBtn').style.display = 'flex';
+    document.getElementById('micBtn').style.display = 'none';
+  };
+  currentUtterance.onend = () => {
+    isSpeaking = false;
+    setReactor('idle');
+    setVoiceBar('idle', 'VOICE READY');
+    document.getElementById('stopSpeakBtn').style.display = 'none';
+    document.getElementById('micBtn').style.display = 'flex';
+    currentUtterance = null;
+  };
+  currentUtterance.onerror = () => {
+    isSpeaking = false;
+    setReactor('idle');
+    setVoiceBar('idle', 'VOICE READY');
+    document.getElementById('stopSpeakBtn').style.display = 'none';
+    document.getElementById('micBtn').style.display = 'flex';
+  };
+  window.speechSynthesis.speak(currentUtterance);
+}
+
+function stopSpeaking() {
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  isSpeaking = false;
+  setReactor('idle');
+  setVoiceBar('idle', 'VOICE READY');
+  document.getElementById('stopSpeakBtn').style.display = 'none';
+  document.getElementById('micBtn').style.display = 'flex';
+}
+
+// Load voices asynchronously (Chrome requires this)
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+</script>
+</body>
+</html>
